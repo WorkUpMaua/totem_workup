@@ -2,7 +2,6 @@ import tkinter as tk
 import threading
 from presenter import Presenter
 
-# ---------- Helpers de UI ----------
 def show_toast(message: str, bg: str, duration_ms: int = 2000):
     """Exibe uma notificação flutuante por alguns segundos."""
     toast = tk.Toplevel(root)
@@ -20,16 +19,14 @@ def show_toast(message: str, bg: str, duration_ms: int = 2000):
     )
     lbl.pack()
 
-    # Centraliza perto do topo da janela principal
     def _place_toast():
         root.update_idletasks()
         toast.update_idletasks()
         x = root.winfo_rootx() + (root.winfo_width() - toast.winfo_reqwidth()) // 2
-        y = root.winfo_rooty() + 30  # 30px abaixo do topo
+        y = root.winfo_rooty() + 30
         toast.geometry(f"+{x}+{y}")
     root.after(10, _place_toast)
 
-    # Remove após 'duration_ms'
     toast.after(duration_ms, toast.destroy)
 
 def is_success_response(resp) -> bool:
@@ -38,12 +35,10 @@ def is_success_response(resp) -> bool:
     Adapte conforme o que seu Presenter realmente retorna.
     """
     try:
-        # Caso seja um objeto com status_code (requests.Response)
         status_code = getattr(resp, "status_code", None)
         if isinstance(status_code, int):
             return 200 <= status_code < 300
 
-        # Caso seja dict/JSON com campos comuns
         if isinstance(resp, dict):
             if "ok" in resp: return bool(resp["ok"])
             if "success" in resp: return bool(resp["success"])
@@ -53,7 +48,6 @@ def is_success_response(resp) -> bool:
             if "error" in resp or "message" in resp and "erro" in str(resp["message"]).lower():
                 return False
 
-        # Caso seja string
         if isinstance(resp, str):
             s = resp.lower()
             if any(w in s for w in ("error", "erro", "invalid", "inválido", "denied", "forbidden")):
@@ -61,16 +55,13 @@ def is_success_response(resp) -> bool:
             if any(w in s for w in ("ok", "success", "opened", "open", "liberada", "liberado")):
                 return True
 
-        # Bool direto
         if isinstance(resp, bool):
             return resp
 
-        # Fallback: considera truthy como sucesso
         return bool(resp)
     except Exception:
         return False
 
-# ---------- Lógica da tela ----------
 def adicionar_numero(n):
     senha_var.set(senha_var.get() + str(n))
 
@@ -85,13 +76,11 @@ def _confirmar_thread(codigo: str):
         ok = False
 
     def _after_resp():
-        # Limpa campo
         senha_var.set("")
         if ok:
-            show_toast("porta aberta", "#2e7d32")  # verde
+            show_toast("porta aberta", "#2e7d32")
         else:
-            show_toast("código inválido", "#c62828")  # vermelho
-        # Reabilita botões
+            show_toast("código inválido", "#c62828")
         set_buttons_state("normal")
 
     root.after(0, _after_resp)
@@ -105,11 +94,9 @@ def confirmar():
     if not codigo:
         show_toast("código inválido", "#c62828")
         return
-    # Desabilita botões enquanto chama a API
     set_buttons_state("disabled")
     threading.Thread(target=_confirmar_thread, args=(codigo,), daemon=True).start()
 
-# ---------- Janela ----------
 root = tk.Tk()
 root.title("Teclado Numérico")
 root.geometry("800x480")
