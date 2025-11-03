@@ -9,5 +9,8 @@ class Presenter:
 
     @staticmethod
     def get_door_open_code(code: str) -> str:
-        response = requests.get(url_back + f'/{code}/json')
+        response = requests.post(
+            url_back + "/get-door-hash",
+            json={"doorCode": code} 
+        )
         return response
