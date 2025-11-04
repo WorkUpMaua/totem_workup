@@ -1,96 +1,154 @@
 import tkinter as tk
 import time
-import os
 from presenter import Presenter
 import serial
 
-# UART configuração básica
-UART_PORT = os.getenv("UART_PORT", "/dev/serial0")
-UART_BAUD = 9600
+# ------------------ UART ------------------
+ser = serial.Serial("/dev/serial0", 9600, timeout=1)
+time.sleep(0.2)  # pequena espera para estabilizar a porta
 
-# Abre UART uma vez
-ser = serial.Serial(UART_PORT, UART_BAUD, timeout=1)
-time.sleep(0.2)
-
-def show_toast(message, bg):
+# ------------------ FUNÇÕES UI ------------------
+def show_toast(message: str, bg: str, duration_ms: int = 2000):
     toast = tk.Toplevel(root)
     toast.overrideredirect(True)
     toast.configure(bg=bg)
     toast.attributes('-topmost', True)
 
-    label = tk.Label(toast, text=message, bg=bg, fg="white", font=("Helvetica", 18, "bold"), padx=20, pady=10)
-    label.pack()
+    lbl = tk.Label(
+        toast,
+        text=message,
+        font=("Helvetica", 18, "bold"),
+        bg=bg,
+        fg="white",
+        padx=24,
+        pady=12,
+    )
+    lbl.pack()
 
     root.update_idletasks()
-    x = root.winfo_x() + (root.winfo_width()//2) - (toast.winfo_reqwidth()//2)
-    y = root.winfo_y() + 30
+    x = root.winfo_rootx() + (root.winfo_width() - toast.winfo_reqwidth()) // 2
+    y = root.winfo_rooty() + 30
     toast.geometry(f"+{x}+{y}")
 
-    toast.after(2000, toast.destroy)
+    toast.after(duration_ms, toast.destroy)
 
-def confirmar_codigo():
+
+def confirmar():
     codigo = senha_var.get().strip()
+
     if not codigo:
-        show_toast("Código inválido", "#c62828")
+        show_toast("código inválido", "#c62828")
         return
 
-    # 1) Chama API (bloqueia a UI — versão simples!)
-    resp = Presenter.get_door_open_code(codigo)
+    btn_confirmar.config(state="disabled")
 
+    # 1) Consulta API (simples e direto)
     try:
-        door_serial = resp.json().get("doorSerial")
+        resp = Presenter.get_door_open_code(codigo)
+        data = resp.json()
+        door_serial = data.get("doorSerial")
     except:
         door_serial = None
 
-    # 2) Se OK → envia caractere pela UART
-    if door_serial and isinstance(door_serial, str) and len(door_serial) > 0:
-        ser.write(door_serial[0].encode())
-        ser.flush()
+    # 2) Se falhou a API
+    if not door_serial:
+        show_toast("código inválido", "#c62828")
+        btn_confirmar.config(state="normal")
+        senha_var.set("")
+        return
 
-        show_toast("Porta aberta", "#2e7d32")
+    # 3) Envia primeiro comando (ex.: "a")
+    ser.write(door_serial[0].encode())
+    ser.flush()
 
-        # Espera 5 segundos (UI congela — simples!)
-        time.sleep(5)
-
-        ser.write(b'f')
-        ser.flush()
-    else:
-        show_toast("Código inválido", "#c62828")
-
+    show_toast("porta aberta", "#2e7d32")
     senha_var.set("")
 
-# ---------------- UI Simples ----------------
+    # 4) Após 5s enviar "f" sem travar UI
+    def enviar_f():
+        ser.write(b"f")
+        ser.flush()
+        btn_confirmar.config(state="normal")
+
+    root.after(5000, enviar_f)
+
+
+# ------------------ UI ------------------
 root = tk.Tk()
-root.title("Teclado")
-root.geometry("400x500")
+root.title("Teclado Numérico")
+root.attributes('-fullscreen', True)
 root.configure(bg="#222222")
 
 senha_var = tk.StringVar()
 
-entry = tk.Entry(root, textvariable=senha_var, font=("Helvetica", 32), justify="center")
-entry.pack(pady=20, fill="x", padx=20)
+entrada_senha = tk.Entry(
+    root,
+    textvariable=senha_var,
+    font=("Helvetica", 48),
+    justify="center",
+    bd=4,
+    relief="ridge",
+)
+entrada_senha.grid(row=0, column=0, columnspan=3, sticky="nsew", padx=10, pady=15)
 
-frame = tk.Frame(root, bg="#222222")
-frame.pack()
+root.rowconfigure(0, weight=2)
+for i in range(1, 5):
+    root.rowconfigure(i, weight=1)
+for j in range(3):
+    root.columnconfigure(j, weight=1)
+
 
 def add_num(n):
     senha_var.set(senha_var.get() + str(n))
 
-for num in range(1, 10):
-    btn = tk.Button(frame, text=str(num), font=("Helvetica", 24),
-                    width=4, height=2, command=lambda n=num: add_num(n))
-    btn.grid(row=(num-1)//3, column=(num-1)%3, padx=5, pady=5)
 
-btn_zero = tk.Button(frame, text="0", font=("Helvetica", 24),
-                     width=4, height=2, command=lambda: add_num(0))
-btn_zero.grid(row=3, column=1, padx=5, pady=5)
+# Números 1 a 9
+numeros = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+for index, numero in enumerate(numeros):
+    row = (index // 3) + 1
+    col = index % 3
+    tk.Button(
+        root,
+        text=str(numero),
+        font=("Helvetica", 24),
+        bg="#555555",
+        fg="white",
+        activebackground="#777777",
+        command=lambda n=numero: add_num(n),
+    ).grid(row=row, column=col, sticky="nsew", padx=5, pady=5)
 
-btn_conf = tk.Button(root, text="Confirmar", font=("Helvetica", 24), bg="#4caf50", fg="white",
-                     command=confirmar_codigo)
-btn_conf.pack(pady=20, ipadx=20, ipady=10)
+# Botão Apagar
+tk.Button(
+    root,
+    text="Apagar",
+    font=("Helvetica", 20),
+    bg="#d9534f",
+    fg="white",
+    activebackground="#e57373",
+    command=lambda: senha_var.set(""),
+).grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
 
-btn_clear = tk.Button(root, text="Apagar", font=("Helvetica", 18), bg="#d9534f", fg="white",
-                      command=lambda: senha_var.set(""))
-btn_clear.pack(ipadx=10, ipady=5)
+# Botão 0
+tk.Button(
+    root,
+    text="0",
+    font=("Helvetica", 24),
+    bg="#555555",
+    fg="white",
+    activebackground="#777777",
+    command=lambda: add_num(0),
+).grid(row=4, column=1, sticky="nsew", padx=5, pady=5)
+
+# Botão Confirmar
+btn_confirmar = tk.Button(
+    root,
+    text="Confirmar",
+    font=("Helvetica", 20),
+    bg="#5cb85c",
+    fg="white",
+    activebackground="#81c784",
+    command=confirmar,
+)
+btn_confirmar.grid(row=4, column=2, sticky="nsew", padx=5, pady=5)
 
 root.mainloop()
