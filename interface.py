@@ -1,111 +1,53 @@
 import tkinter as tk
 import threading
-import asyncio
 import time
 import os
 from typing import Optional
 
 from presenter import Presenter
-from bleak import BleakClient, BleakScanner, BleakError
+import serial
 
-# ------------------ CONFIG BLE ------------------
-TARGET_NAME = os.getenv("BLE_TARGET_NAME", "HC-08").strip()
-UART_CHAR_UUID = "0000ffe1-0000-1000-8000-00805f9b34fb"  # característica UART do HC-08
-CONNECT_TIMEOUT = 10.0
-RECONNECT_DELAY = 2.0
+# ------------------ CONFIG UART ------------------
+UART_PORT = os.getenv("UART_PORT", "/dev/serial0").strip()
+UART_BAUD = int(os.getenv("UART_BAUD", "9600"))
 
-class BLEManager:
+class UARTManager:
     """
-    Gerencia a conexão BLE ao HC-08 em um loop asyncio separado.
-    Use ble.send_text("...") para enviar dados. Ele conecta automaticamente.
+    Gerencia a comunicação UART síncrona (thread-safe) com o Raspberry Pi.
+    Abre /dev/serial0 @ 9600 por padrão, similar ao exemplo simples.
     """
-    def __init__(self):
-        self._loop = asyncio.new_event_loop()
-        self._thread = threading.Thread(target=self._run_loop, daemon=True)
-        self._client: Optional[BleakClient] = None
-        self._address: Optional[str] = None
-        self._connected = False
+    def __init__(self, port: str = UART_PORT, baud: int = UART_BAUD):
+        self._port = port
+        self._baud = baud
         self._lock = threading.Lock()
-        self._thread.start()
+        self._ser: Optional[serial.Serial] = None
+        self._open_port()
 
-    def _run_loop(self):
-        asyncio.set_event_loop(self._loop)
-        self._loop.run_forever()
-
-    def _call_soon_threadsafe(self, coro):
-        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
-        return fut
-
-    async def _discover_address(self) -> Optional[str]:
-        # Descobre pelo nome de anúncio (HC-08)
-        devices = await BleakScanner.discover(timeout=8.0)
-        for d in devices:
-            if d.name and TARGET_NAME.lower() in d.name.lower():
-                return d.address
-        return None
-
-    async def _ensure_connected(self) -> bool:
-        if self._client and self._client.is_connected:
-            self._connected = True
-            return True
-
-        # Descobrir endereço, se necessário
-        if not self._address:
-            self._address = await self._discover_address()
-            if not self._address:
-                return False
-
-        # Tentar conectar
+    def _open_port(self):
         try:
-            client = BleakClient("C4:BE:84:ED:F3:A5", timeout=CONNECT_TIMEOUT)
-            await client.connect()
-            if client.is_connected:
-                self._client = client
-                self._connected = True
-                return True
-            return False
+            self._ser = serial.Serial(self._port, self._baud, timeout=1)
+            time.sleep(2)
         except Exception:
-            self._connected = False
-            return False
+            self._ser = None
 
-    async def _send_text_async(self, text: str) -> bool:
-        ok = await self._ensure_connected()
-        if not ok:
-            return False
+    def _ensure_open(self):
+        if self._ser is None or not self._ser.is_open:
+            self._open_port()
 
-        # Tenta escrever; se falhar, tenta reconectar 1x
-        data = text.encode("utf-8")
-        try:
-            # Linux costuma aceitar response=True
-            await self._client.write_gatt_char(UART_CHAR_UUID, data, response=True)
-            return True
-        except Exception:
-            # Tentativa de reconectar e enviar novamente
-            try:
-                if self._client and self._client.is_connected:
-                    try:
-                        await self._client.disconnect()
-                    except Exception:
-                        pass
-                self._client = None
-                self._connected = False
-                await asyncio.sleep(RECONNECT_DELAY)
-                if await self._ensure_connected():
-                    await self._client.write_gatt_char(UART_CHAR_UUID, data, response=True)
-                    return True
-            except Exception:
-                return False
-        return False
-
-    def send_text(self, text: str, timeout: float = 12.0) -> bool:
+    def send_text(self, text: str) -> bool:
         """
-        Chamada thread-safe: envia texto pela UART BLE.
+        Envia o texto como bytes (sem terminador). Ex.: 'a' → b'a'
         Retorna True/False conforme sucesso.
         """
         with self._lock:
-            fut = self._call_soon_threadsafe(self._send_text_async(text))
             try:
-                return fut.result(timeout=timeout)
+                self._ensure_open()
+                if self._ser is None:
+                    return False
+                data = text.encode("utf-8")
+                self._ser.write(data)
+                self._ser.flush()
+                return True
             except Exception:
                 return False
 
@@ -140,7 +82,6 @@ def show_toast(message: str, bg: str, duration_ms: int = 2000):
 def is_success_response(resp) -> bool:
     """
     Tenta inferir se a resposta da API foi sucesso.
-    Adapte conforme o retorno real do Presenter.
     """
     try:
         status_code = getattr(resp, "status_code", None)
@@ -170,7 +111,6 @@ def is_success_response(resp) -> bool:
     except Exception:
         return False
 
-
 # ------------------ UI E LÓGICA ------------------
 def adicionar_numero(n):
     senha_var.set(senha_var.get() + str(n))
@@ -187,15 +127,23 @@ def _confirmar_thread(codigo: str):
         resp = None
         api_ok = False
 
-    # 2) se API ok, extrai doorSerial e envia via BLE
+    # 2) se API ok, extrai doorSerial e envia via UART
     sent_ok = False
     door_serial_text = None
     if api_ok:
-        door_serial_text = resp.json()['doorSerial']
+        try:
+            # Esperado: doorSerial é "a"
+            door_serial_text = resp.json()['doorSerial']
+        except Exception:
+            door_serial_text = None
+
         if isinstance(door_serial_text, str) and len(door_serial_text) > 0:
-            # Envia via BLE
-            print(door_serial_text)
-            sent_ok = ble.send_text(door_serial_text)
+            # Envia exatamente como no exemplo simples: um único byte ('a' ou o que vier)
+            sent_ok = uart.send_text(door_serial_text[0])
+            # Se enviou com sucesso, aguarda 5s e envia 'f'
+            if sent_ok:
+                time.sleep(5)
+                uart.send_text('f')
         else:
             sent_ok = False
 
@@ -300,7 +248,7 @@ btn_confirmar = tk.Button(
 btn_confirmar.grid(row=4, column=2, sticky="nsew", padx=5, pady=5)
 all_buttons.append(btn_confirmar)
 
-# ------------------ INICIAR BLE ------------------
-ble = BLEManager()
+# ------------------ INICIAR UART ------------------
+uart = UARTManager()
 
 root.mainloop()
