@@ -77,8 +77,9 @@ RF12 - O sistema deve permitir interação via touchscreen.
 ## 🤝 Integrantes
 
 - [João Paulo Bonagurio Ramirez](https://github.com/yJony)           | 22.01247-8
-- [Lucas Milani Thomsen Galhardo](https://github.com/LucasKiller)    | 22.00818-7  
-- [Lucas Olivares Borges da Silva](https://github.com/lvcasolivares) | 22.00889-6
+- [Lucas Milani Thomsen Galhardo](https://github.com/LucasKiller)    | 22.00818-7   🤪🔪
 - [Luis Gustavo Gonçalves Machado](https://github.com/luisgmachado)  | 21.00322-0
 - [Tiago Tadeu de Azevedo](https://github.com/tiagooazevedo)         | 22.00856-0
-- [Victor Augusto de Gasperi](https://github.com/VictorGasperi)      | 22.00765-2 
+- [Victor Augusto de Gasperi](https://github.com/VictorGasperi)      | 22.00765-2
+
+![Imagem dos Integrantes](docs/foto-grupo.jpeg)
