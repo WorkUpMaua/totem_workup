@@ -4,17 +4,21 @@ Este projeto é uma interface gráfica simples e funcional feita em Python com T
 
 A ideia é simular o comportamento do totem de abertura da fechadura eletrônica, que utiliza a API de reservas do WorkUp para pegar o código de entrada da porta e abrir a fechadura se o código for válido.
 
----
 
-## Funcionalidades
+## Requisitos
 
-* Teclado numérico com botões de 0 a 9 dispostos em layout tradicional (3x4).
-* Campo de senha que oculta os caracteres digitados (como um campo de senha real).
-* Botão **Apagar** para remover o último dígito digitado.
-* Botão **Confirmar** que imprime a senha digitada no console e limpa o campo.
-* Layout responsivo e flexível que se adapta ao tamanho da janela.
-* A janela inicia maximizada para melhor aproveitamento da tela.
-* Botões com cores e fontes pensadas para uso em touchscreen, facilitando a interação.
+RF01 - O sistema deve apresentar um teclado numérico com botões de 0 a 9.  
+RF02 - O teclado deve estar organizado em layout tradicional de 3 colunas × 4 linhas.  
+RF03 - O sistema deve disponibilizar um campo para digitação da senha/código.  
+RF04 - O campo de senha deve ocultar os caracteres digitados.  
+RF05 - O sistema deve possuir um botão "Apagar" para remover o último dígito.  
+RF06 - O sistema deve possuir um botão "Confirmar" para enviar o código digitado.  
+RF07 - Após a confirmação, o sistema deve limpar o campo de senha.  
+RF08 - O sistema deve exibir feedback ao usuário sobre sucesso ou falha na validação do código.  
+RF09 - O sistema deve consumir a API do WorkUp para validar o código e autorizar a abertura da fechadura.  
+RF10 - A interface deve iniciar em modo maximizado.  
+RF11 - O layout deve se adaptar automaticamente ao tamanho da tela.  
+RF12 - O sistema deve permitir interação via touchscreen.
 
 ---
 
