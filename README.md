@@ -29,6 +29,13 @@ RF12 - O sistema deve permitir interação via touchscreen.
 
 ---
 
+## Diagrama ilustrativo
+
+<figure>
+  <img src="docs/ilustracao_totem.drawio.png" width="800">
+  <figcaption><strong>Figura 1:</strong> Arquitetura do projeto</figcaption>
+</figure>
+
 ## Como usar
 
 1. Certifique-se de ter o Python 3 instalado.
